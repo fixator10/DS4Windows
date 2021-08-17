@@ -1,0 +1,66 @@
+name: .NET Core Desktop
+
+on:
+  push:
+    branches: [ jay ]
+  # paths: "DS4Windows\\*"
+  # pull_request:
+  #   branches: [ jay ]
+  workflow_dispatch:
+
+jobs:
+
+  build:
+
+    # strategy:
+    #   matrix:
+    #     configuration: [Debug, Release]
+
+    runs-on: windows-latest  # For a list of available runner types, refer to
+                             # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idruns-on
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v1
+      # with:
+        # nuget-api-key: ${{ secrets.NuGetAPIKey }}
+        # nuget-version: '5.x'
+    - name: NuGet restore
+      run: nuget restore DS4WindowsWPF.sln
+
+    # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@v1.0.2
+
+    # Create the app package by building and packaging the Windows Application Packaging project
+    - name: Build DS4Windows
+      run: msbuild DS4WindowsWPF.sln /property:Configuration=Release
+      
+    - name: Cleanup
+      run: |
+        python -c "import shutil, re, os; os.chdir('./DS4Windows/bin/x64/Release/net5.0-windows'); [shutil.move(directory, './Lang') for directory in os.listdir() if re.search('^[a-z]{2}(-[A-Z]{2})?$', directory)]"
+        Remove-Item -path "DS4Windows\bin\x64\Release\net5.0-windows\ref" -recurse
+
+
+    # Upload the MSIX package: https://github.com/marketplace/actions/upload-artifact
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: DS4Windows
+        path: DS4Windows\bin\x64\Release\net5.0-windows
